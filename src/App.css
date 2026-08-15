@@ -378,7 +378,7 @@ td {
 }
 
 .logo-wrap {
-  max-width: 110px;
+  max-width: 150px;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -388,7 +388,7 @@ td {
 .logo-wrap img {
   width: 100%;
   height: auto;
-  max-height: 90px;
+  max-height: 130px;
   object-fit: contain;
 }
 

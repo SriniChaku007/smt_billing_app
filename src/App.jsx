@@ -10,7 +10,14 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 2,
 })
 
-const today = new Date().toISOString().slice(0, 10)
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const today = getLocalDateString()
 const initialItemForm = {
   itemName: '',
   mrp: '',
@@ -22,9 +29,10 @@ const initialItemForm = {
 
 const formatCurrency = (value) => currencyFormatter.format(Number(value || 0))
 
-const getLineMrp = (item) => Number(item.mrp || 0) * Number(item.quantity || 1)
-const getLineDiscountAmount = (item) => Number(item.discountAmount || 0) * Number(item.quantity || 1)
-const getLineSmtPrice = (item) => Number(item.smtPrice || 0) * Number(item.quantity || 1)
+const getLineMrp = (item) => Number(item.mrp || 0)
+const getLineDiscountAmount = (item) => Number(item.discountAmount || 0)
+const getLineSmtPrice = (item) => Number(item.smtPrice || 0)
+const getLineAfterDiscount = (item) => Math.max(0, Number(item.mrp || 0) - Number(item.discountAmount || 0))
 
 const normalizeDecimalInput = (value) => {
   const raw = value.replace(/[^0-9.]/g, '')
@@ -192,50 +200,15 @@ function App() {
   const [pdfBlob, setPdfBlob] = useState(null)
   const [pdfUrl, setPdfUrl] = useState('')
 
-  const logoDataUrl = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 220
-    canvas.height = 220
-    const context = canvas.getContext('2d')
+  const logoDataUrl = '/src/assets/smt_logo.png'
 
-    if (!context) {
-      return ''
-    }
-
-    context.fillStyle = '#f8fafc'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-
-    context.fillStyle = '#1f4d3f'
-    context.beginPath()
-    context.arc(110, 95, 58, 0, Math.PI * 2)
-    context.fill()
-
-    context.fillStyle = '#ffffff'
-    context.font = 'bold 54px Arial'
-    context.textAlign = 'center'
-    context.fillText('SMT', 110, 108)
-
-    context.fillStyle = '#0f172a'
-    context.font = 'bold 28px Arial'
-    context.fillText('SPORTS', 110, 148)
-
-    context.strokeStyle = '#0f172a'
-    context.lineWidth = 5
-    context.beginPath()
-    context.moveTo(46, 160)
-    context.lineTo(174, 160)
-    context.stroke()
-
-    context.fillStyle = '#1f4d3f'
-    context.fillRect(62, 170, 96, 18)
-
-    return canvas.toDataURL('image/png')
-  }, [])
-
-  const totalMrp = items.reduce((sum, item) => sum + getLineMrp(item), 0)
-  const totalDiscountedAmount = items.reduce((sum, item) => sum + getLineDiscountAmount(item), 0)
+  const totalMrp = items.reduce((sum, item) => sum + getLineMrp(item) * Number(item.quantity || 1), 0)
+  const totalDiscountedAmount = items.reduce(
+    (sum, item) => sum + getLineDiscountAmount(item) * Number(item.quantity || 1),
+    0,
+  )
   const totalSmtPrice = items.reduce((sum, item) => sum + getLineSmtPrice(item), 0)
-  const totalBillAmount = totalSmtPrice + Number(roundOff || 0)
+  const totalBillAmount = totalMrp - totalDiscountedAmount + Number(roundOff || 0)
 
   const resetItemForm = () => {
     setItemForm(initialItemForm)
@@ -461,13 +434,14 @@ function App() {
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Item Details', 'Qty', 'MRP', 'Discount %', 'Discount Amount', 'SMT Price']],
+      head: [['Item Details', 'MRP', 'Discount %', 'Discount Amount', 'After Discount', 'Qty', 'SMT Price']],
       body: items.map((item) => [
         item.itemName,
-        String(item.quantity || 1),
         formatCurrency(getLineMrp(item)),
         `${Number(item.discountPercent || 0).toFixed(2)}%`,
         formatCurrency(getLineDiscountAmount(item)),
+        formatCurrency(getLineAfterDiscount(item)),
+        String(item.quantity || 1),
         formatCurrency(getLineSmtPrice(item)),
       ]),
       theme: 'grid',
@@ -483,12 +457,13 @@ function App() {
         fontStyle: 'bold',
       },
       columnStyles: {
-        0: { cellWidth: 140 },
+        0: { cellWidth: 120 },
         1: { halign: 'center', cellWidth: 34 },
-        2: { halign: 'right', cellWidth: 60 },
-        3: { halign: 'right', cellWidth: 54 },
-        4: { halign: 'right', cellWidth: 84 },
+        2: { halign: 'right', cellWidth: 54 },
+        3: { halign: 'right', cellWidth: 52 },
+        4: { halign: 'right', cellWidth: 72 },
         5: { halign: 'right', cellWidth: 72 },
+        6: { halign: 'right', cellWidth: 72 },
       },
       margin: { left: margin, right: margin },
     })
@@ -716,21 +691,6 @@ function App() {
                 </div>
 
                 <div className="field-group">
-                  <label htmlFor="quantity">Quantity</label>
-                  <input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={itemForm.quantity}
-                    onChange={(event) => handleDraftFieldChange('quantity', event.target.value)}
-                    placeholder="1"
-                    className={formErrors.quantity ? 'invalid' : ''}
-                  />
-                  {formErrors.quantity && <span className="error-text">{formErrors.quantity}</span>}
-                </div>
-
-                <div className="field-group">
                   <label htmlFor="discountPercent">Discount %</label>
                   <input
                     id="discountPercent"
@@ -764,6 +724,34 @@ function App() {
                   {formErrors.discountAmount && (
                     <span className="error-text">{formErrors.discountAmount}</span>
                   )}
+                </div>
+
+                <div className="field-group">
+                  <label htmlFor="afterDiscount">After Discount</label>
+                  <input
+                    id="afterDiscount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={Math.max(0, Number(itemForm.mrp || 0) - Number(itemForm.discountAmount || 0))}
+                    readOnly
+                    className={formErrors.smtPrice ? 'invalid readonly-input' : 'readonly-input'}
+                  />
+                </div>
+
+                <div className="field-group">
+                  <label htmlFor="quantity">Quantity</label>
+                  <input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={itemForm.quantity}
+                    onChange={(event) => handleDraftFieldChange('quantity', event.target.value)}
+                    placeholder="1"
+                    className={formErrors.quantity ? 'invalid' : ''}
+                  />
+                  {formErrors.quantity && <span className="error-text">{formErrors.quantity}</span>}
                 </div>
 
                 <div className="field-group">
@@ -805,10 +793,11 @@ function App() {
                   <thead>
                     <tr>
                       <th>Item Details</th>
-                      <th>Qty</th>
                       <th>MRP</th>
                       <th>Discount %</th>
                       <th>Discount Amount</th>
+                      <th>After Discount</th>
+                      <th>Quantity</th>
                       <th>SMT Price</th>
                       <th>Action</th>
                     </tr>
@@ -817,10 +806,11 @@ function App() {
                     {items.map((item) => (
                       <tr key={item.id}>
                         <td>{item.itemName}</td>
-                        <td>{item.quantity || 1}</td>
                         <td>{formatCurrency(getLineMrp(item))}</td>
                         <td>{Number(item.discountPercent || 0).toFixed(2)}%</td>
                         <td>{formatCurrency(getLineDiscountAmount(item))}</td>
+                        <td>{formatCurrency(getLineAfterDiscount(item))}</td>
+                        <td>{item.quantity || 1}</td>
                         <td>{formatCurrency(getLineSmtPrice(item))}</td>
                         <td>
                           <div className="table-actions">
@@ -977,10 +967,11 @@ function App() {
                   <thead>
                     <tr>
                       <th>Item Details</th>
-                      <th>Qty</th>
                       <th>MRP</th>
                       <th>Discount %</th>
                       <th>Discount Amount</th>
+                      <th>After Discount</th>
+                      <th>Qty</th>
                       <th>SMT Price</th>
                     </tr>
                   </thead>
@@ -989,10 +980,11 @@ function App() {
                       items.map((item) => (
                         <tr key={item.id}>
                           <td>{item.itemName}</td>
-                          <td>{item.quantity || 1}</td>
                           <td>{formatCurrency(getLineMrp(item))}</td>
                           <td>{Number(item.discountPercent || 0).toFixed(2)}%</td>
                           <td>{formatCurrency(getLineDiscountAmount(item))}</td>
+                          <td>{formatCurrency(getLineAfterDiscount(item))}</td>
+                          <td>{item.quantity || 1}</td>
                           <td>{formatCurrency(getLineSmtPrice(item))}</td>
                         </tr>
                       ))
