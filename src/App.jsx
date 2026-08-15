@@ -578,7 +578,6 @@ function App() {
       <div className="page-shell">
         <header className="page-header">
           <div>
-            <span className="eyebrow">Retail Billing System</span>
             <h1>SMT Sports Billing</h1>
           </div>
         </header>
