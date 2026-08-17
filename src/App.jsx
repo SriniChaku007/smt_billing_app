@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable'
 import './App.css'
 import smtLogo from "./assets/smt_logo.png";
 
+
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
