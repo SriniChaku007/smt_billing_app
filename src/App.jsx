@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import './App.css'
+import smtLogo from "./assets/smt_logo.png";
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -199,8 +200,6 @@ function App() {
   const [formErrors, setFormErrors] = useState({})
   const [pdfBlob, setPdfBlob] = useState(null)
   const [pdfUrl, setPdfUrl] = useState('')
-
-  const logoDataUrl = '/src/assets/smt_logo.png'
 
   const totalMrp = items.reduce((sum, item) => sum + getLineMrp(item) * Number(item.quantity || 1), 0)
   const totalDiscountedAmount = items.reduce(
@@ -400,8 +399,8 @@ function App() {
     doc.text('9, Alapakkam,', pageWidth - 150, 46)
     doc.text('Chennai - 600063.', pageWidth - 150, 60)
 
-    if (logoDataUrl) {
-      doc.addImage(logoDataUrl, 'PNG', pageWidth - margin - 74, 10, 58, 58)
+    if (smtLogo) {
+      doc.addImage(smtLogo, 'PNG', pageWidth - margin - 74, 10, 58, 58)
     }
 
     let currentY = 106
@@ -938,7 +937,7 @@ function App() {
                   <p>Chennai - 600063.</p>
                 </div>
                 <div className="logo-wrap">
-                  <img src={logoDataUrl} alt="SMT Sports logo" />
+                  <img src={smtLogo} alt="SMT Sports logo" />
                 </div>
               </div>
 
