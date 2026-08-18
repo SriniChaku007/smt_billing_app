@@ -3,12 +3,30 @@ import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import './App.css'
 import smtLogo from "./assets/smt_logo.png";
-import upiQr from "./assets/upi_qr.png";
+import upiQr from "./assets/SMT_UPI.jpeg";
+import instaQr from "./assets/SMT_INSTA.png";
+import mapQr from "./assets/SMT_MAP.png";
 
-const UPI_PAYMENT = {
-  upiId: 'SMT Sports',
-  upiName: 'smtsports1504@oksbi',
-}
+const QR_CARDS = [
+  {
+    id: 'upi',
+    image: upiQr,
+    alt: 'UPI payment QR code',
+    details: [{ label: '', value: 'smtsports1504@oksb' }],
+  },
+  {
+    id: 'instagram',
+    image: instaQr,
+    alt: 'Instagram QR code',
+    details: [{ label: '', value: 'smt_sports' }],
+  },
+  {
+    id: 'location',
+    image: mapQr,
+    alt: 'Google Maps location QR code',
+    details: [{ label: '', value: 'SMT Sports' }],
+  },
+]
 
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
@@ -61,29 +79,46 @@ const recalculateDraftItem = (draft, changedField) => {
 
   const lineMrpValue = mrpValue * quantityValue
 
+  const applyPerUnitDiscount = (nextDraft, perUnitDiscount, { preserveAmountInput = false } = {}) => {
+    const clampedPerUnitDiscount = clamp(perUnitDiscount, 0, mrpValue)
+    const totalDiscount = clampedPerUnitDiscount * quantityValue
+    const computedPercent = lineMrpValue > 0 ? (totalDiscount / lineMrpValue) * 100 : 0
+
+    return {
+      ...nextDraft,
+      discountAmount: preserveAmountInput
+        ? nextDraft.discountAmount
+        : clampedPerUnitDiscount.toFixed(2),
+      discountPercent: computedPercent.toFixed(2),
+      smtPrice: Math.max(0, lineMrpValue - totalDiscount),
+    }
+  }
+
+  const applyPercentDiscount = (nextDraft, nextPercent) => {
+    const clampedPercent = clamp(nextPercent, 0, 99.999)
+    const totalDiscount = lineMrpValue > 0 ? (lineMrpValue * clampedPercent) / 100 : 0
+
+    return {
+      ...nextDraft,
+      discountPercent: String(clampedPercent),
+      discountAmount: (totalDiscount / quantityValue).toFixed(2),
+      smtPrice: Math.max(0, lineMrpValue - totalDiscount),
+    }
+  }
+
   if (changedField === 'quantity') {
     if (draft.discountPercent !== '') {
-      const nextPercent = clamp(Number(draft.discountPercent || 0), 0, 99.999)
-      const computedAmount = lineMrpValue > 0 ? (lineMrpValue * nextPercent) / 100 : 0
-      return {
-        ...draft,
-        quantity: String(quantityValue),
-        discountPercent: String(nextPercent),
-        discountAmount: (computedAmount / quantityValue).toFixed(2),
-        smtPrice: Math.max(0, lineMrpValue - computedAmount),
-      }
+      return applyPercentDiscount(
+        { ...draft, quantity: String(quantityValue) },
+        Number(draft.discountPercent || 0),
+      )
     }
 
     if (draft.discountAmount !== '') {
-      const nextAmount = clamp(Number(draft.discountAmount || 0), 0, lineMrpValue)
-      const computedPercent = lineMrpValue > 0 ? (nextAmount / lineMrpValue) * 100 : 0
-      return {
-        ...draft,
-        quantity: String(quantityValue),
-        discountAmount: nextAmount.toFixed(2),
-        discountPercent: computedPercent.toFixed(2),
-        smtPrice: Math.max(0, lineMrpValue - nextAmount),
-      }
+      return applyPerUnitDiscount(
+        { ...draft, quantity: String(quantityValue) },
+        Number(draft.discountAmount || 0),
+      )
     }
 
     return {
@@ -95,25 +130,11 @@ const recalculateDraftItem = (draft, changedField) => {
 
   if (changedField === 'mrp') {
     if (draft.discountPercent !== '') {
-      const nextPercent = clamp(Number(draft.discountPercent || 0), 0, 99.999)
-      const computedAmount = lineMrpValue > 0 ? (lineMrpValue * nextPercent) / 100 : 0
-      return {
-        ...draft,
-        discountPercent: String(nextPercent),
-        discountAmount: (computedAmount / quantityValue).toFixed(2),
-        smtPrice: Math.max(0, lineMrpValue - computedAmount),
-      }
+      return applyPercentDiscount(draft, Number(draft.discountPercent || 0))
     }
 
     if (draft.discountAmount !== '') {
-      const nextAmount = clamp(Number(draft.discountAmount || 0), 0, lineMrpValue)
-      const computedPercent = lineMrpValue > 0 ? (nextAmount / lineMrpValue) * 100 : 0
-      return {
-        ...draft,
-        discountAmount: nextAmount.toFixed(2),
-        discountPercent: computedPercent.toFixed(2),
-        smtPrice: Math.max(0, lineMrpValue - nextAmount),
-      }
+      return applyPerUnitDiscount(draft, Number(draft.discountAmount || 0))
     }
 
     return {
@@ -131,17 +152,9 @@ const recalculateDraftItem = (draft, changedField) => {
       }
     }
 
-    const nextPercent = clamp(Number(draft.discountPercent || 0), 0, 99.999)
-    const computedAmount = lineMrpValue > 0 ? (lineMrpValue * nextPercent) / 100 : 0
-
-    return {
-      ...draft,
-      discountPercent: String(nextPercent),
-      discountAmount: (computedAmount / quantityValue).toFixed(2),
-      smtPrice: Math.max(0, lineMrpValue - computedAmount),
-    }
+    return applyPercentDiscount(draft, Number(draft.discountPercent || 0))
   }
-debugger
+
   if (changedField === 'discountAmount') {
     if (draft.discountAmount === '') {
       return {
@@ -151,37 +164,17 @@ debugger
       }
     }
 
-    const nextAmount = clamp(Number(draft.discountAmount || 0), 0, lineMrpValue)
-    const computedPercent = lineMrpValue > 0 ? (nextAmount / lineMrpValue) * 100 : 0
-
-    return {
-      ...draft,
-      discountAmount: nextAmount.toFixed(2),
-      discountPercent: computedPercent.toFixed(2),
-      smtPrice: Math.max(0, lineMrpValue - nextAmount),
-    }
+    return applyPerUnitDiscount(draft, Number(draft.discountAmount || 0), {
+      preserveAmountInput: true,
+    })
   }
 
   if (percentValue !== null && amountValue === null) {
-    const nextPercent = clamp(percentValue, 0, 99.999)
-    const computedAmount = lineMrpValue > 0 ? (lineMrpValue * nextPercent) / 100 : 0
-    return {
-      ...draft,
-      discountPercent: String(nextPercent),
-      discountAmount: (computedAmount / quantityValue).toFixed(2),
-      smtPrice: Math.max(0, lineMrpValue - computedAmount),
-    }
+    return applyPercentDiscount(draft, percentValue)
   }
 
   if (amountValue !== null && percentValue === null) {
-    const nextAmount = clamp(amountValue, 0, lineMrpValue)
-    const computedPercent = lineMrpValue > 0 ? (nextAmount / lineMrpValue) * 100 : 0
-    return {
-      ...draft,
-      discountAmount: nextAmount.toFixed(2),
-      discountPercent: computedPercent.toFixed(2),
-      smtPrice: Math.max(0, lineMrpValue - nextAmount),
-    }
+    return applyPerUnitDiscount(draft, amountValue)
   }
 
   return {
@@ -199,7 +192,7 @@ function App() {
   const [itemForm, setItemForm] = useState(initialItemForm)
   const [items, setItems] = useState([])
   const [editingItemId, setEditingItemId] = useState(null)
-  const [paymentStatus, setPaymentStatus] = useState('Paid')
+  const [paymentStatus, setPaymentStatus] = useState('Pending')
   const [paymentMode, setPaymentMode] = useState('Online')
   const [partialAmount, setPartialAmount] = useState('')
   const [roundOff, setRoundOff] = useState(0)
@@ -247,12 +240,11 @@ function App() {
       nextErrors.discountPercent = 'Discount % must be between 0 and below 100.'
     }
 
-    const maxDiscountAmount = Number(item.mrp || 0) * Number(item.quantity || 1)
     if (
       Number(item.discountAmount) < 0 ||
-      Number(item.discountAmount) > maxDiscountAmount
+      Number(item.discountAmount) > Number(item.mrp || 0)
     ) {
-      nextErrors.discountAmount = 'Discount amount must be between 0 and MRP x quantity.'
+      nextErrors.discountAmount = 'Discount amount must be between 0 and MRP.'
     }
 
     if (Number(item.smtPrice) < 0) {
@@ -442,7 +434,7 @@ function App() {
       `Payment Date: ${paymentDate}`,
       `Total Bill Amount: ${formatCurrency(totalBillAmount)}`,
       `Payment Status: ${paymentStatus}`,
-      `Partial Amount: ${paymentStatus === 'Partially Paid' ? formatCurrency(partialAmount || 0) : '-'}`,
+      `Paid Amount: ${paymentStatus === 'Partially Paid' ? formatCurrency(partialAmount || 0) : paymentStatus === 'Paid' ? formatCurrency(totalBillAmount) : '-'}`,
       `Payment Mode: ${paymentMode}`,
     ].join('\n')
 
@@ -606,12 +598,13 @@ function App() {
                     id="discountAmount"
                     type="number"
                     min="0"
+                    step="0.01"
                     max={Number(itemForm.mrp || 0) || undefined}
                     value={itemForm.discountAmount}
                     onChange={(event) =>
                       handleDraftFieldChange('discountAmount', normalizeDecimalInput(event.target.value))
                     }
-                    placeholder="0"
+                    placeholder="0.00"
                     className={formErrors.discountAmount ? 'invalid' : ''}
                   />
                   {formErrors.discountAmount && (
@@ -735,7 +728,7 @@ function App() {
               <div className="choice-block">
                 <label>Payment Status</label>
                 <div className="toggle-group">
-                  {['Paid', 'Partially Paid', 'Pending'].map((status) => (
+                  {['Pending', 'Partially Paid', 'Paid'].map((status) => (
                     <button
                       key={status}
                       type="button"
@@ -751,7 +744,7 @@ function App() {
               <div className="choice-block">
                 <label>Payment Mode</label>
                 <div className="toggle-group">
-                  {['Online', 'Cash'].map((mode) => (
+                  {['Online', 'Cash', 'Cash & Online'].map((mode) => (
                     <button
                       key={mode}
                       type="button"
@@ -808,8 +801,20 @@ function App() {
                   type="number"
                   step="0.01"
                   value={roundOff}
-                  onChange={(event) => setRoundOff(Number(event.target.value || 0))}
+                  // min="0"
+                  onChange={(event) => {
+                    const rawValue = event.target.value;
+                    // Allow "-" for quickly inputting negative and also allow empty string
+                    if (rawValue === "" || rawValue === "-") {
+                      setRoundOff(rawValue);
+                    } else {
+                      const num = Number(rawValue);
+                      setRoundOff(isNaN(num) ? 0 : num);
+                    }
+
+                  }}
                 />
+
               </div>
               <div className="summary-row total-row">
                 <span>Total Bill Amount</span>
@@ -824,16 +829,25 @@ function App() {
             </div>
 
             <div className="preview-invoice" ref={previewRef} aria-label="Billing preview">
+              <div className="invoice-title" style={{ textAlign: "center", marginBottom: "1em" }}>
+                <h1 style={{ margin: 0, fontSize: "2em" }}>Sales Order</h1>
+              </div>
+         
               <div className="invoice-header">
                 <div className="shop-info">
                   <h3>SMT Sports</h3>
-                  <p>No.134/2, Gandhi Road,</p>
-                  <p>9, Alapakkam,</p>
-                  <p>Chennai - 600063.</p>
+                  <p style={{ display: "flex", alignItems: "center", gap: "0.5em", margin: 0 }}>
+                    <span role="img" aria-label="Phone" style={{ fontSize: "1.1em" }}>📞</span>
+                    <span>97916 30322, 70921 50426</span>
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.95em", color: "#555" }}>
+                    <strong>MSME No:</strong> UDYAM-TN-34-0114424
+                  </p>
                 </div>
-                <div className="logo-wrap">
-                  <img src={smtLogo} alt="SMT Sports logo" />
+                <div className="logo-wrap" style={{ width: "120px", height: "120px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <img src={smtLogo} alt="SMT Sports logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                 </div>
+           
               </div>
 
               <div className="invoice-customer">
@@ -895,9 +909,21 @@ function App() {
                     <strong>{paymentStatus}</strong>
                   </div>
                   {paymentStatus === 'Partially Paid' && (
+                    <>
+                      <div className="payment-line">
+                        <span>Paid Amount:</span>
+                        <strong>{formatCurrency(partialAmount || 0)}</strong>
+                      </div>
+                      <div className="payment-line">
+                        <span>Balance Amount:</span>
+                        <strong>{formatCurrency(totalBillAmount - (partialAmount || 0))}</strong>
+                      </div>
+                    </>
+                  )}
+                  {paymentStatus === 'Paid' && (
                     <div className="payment-line">
-                      <span>Partial Amount:</span>
-                      <strong>{formatCurrency(partialAmount || 0)}</strong>
+                      <span>Paid Amount:</span>
+                      <strong>{formatCurrency(totalBillAmount)}</strong>
                     </div>
                   )}
                   <div className="payment-line">
@@ -926,36 +952,64 @@ function App() {
                 </div>
               </div>
 
-              <div className="invoice-upi-section">
-                <div className="upi-header">
-                  <img src={smtLogo} alt="" className="upi-logo" />
-                  <span>{UPI_PAYMENT.upiId}</span>
+              <div className="invoice-qr-section">
+                <div className="qr-card-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  {/* <img src={smtLogo} alt="" className="qr-card-logo" /> */}
+                  <span style={{
+                    fontWeight: 700,
+                    fontSize: "1.2rem",
+                    // color: "rgb(0, 100, 200)", // SMT blue
+                    // For logo gradient: also mix with orange (#e64d2e), e.g. using a multi-color effect
+                    // Example: use a gradient text if supported, fallback to blue/orange for cross-compatibility
+                    // You may toggle between blue and orange (#e64d2e) for brand consistency
+                    // WebkitBackgroundClip: "text",
+                    // WebkitTextFillColor: "transparent",
+                    // backgroundClip: "text",
+                    marginTop: 6,
+                    letterSpacing: "0.5px",
+                    textAlign: "center"
+                  }}>
+                    Scan To Know More About - SMT Sports
+                  </span>
+
                 </div>
-                <div className="upi-qr-card">
-                  <img src={upiQr} alt="UPI payment QR code" className="upi-qr-image" />
+
+                <div className="qr-cards-grid">
+
+                  {QR_CARDS.map((card) => (
+                    <div key={card.id} className="qr-card">
+                      {/* <div className="qr-card-header">
+                        <img src={smtLogo} alt="" className="qr-card-logo" />
+                        <span>SMT Sports</span>
+                      </div> */}
+                      <div className="qr-card-image-wrap">
+                        <img src={card.image} alt={card.alt} className="qr-card-image" />
+                      </div>
+                      {card.details.length > 0 && (
+                        <div className="qr-card-details">
+                          {card.details.map((detail) => (
+                            <p key={detail.label}>
+                              {/* <span>{detail.label}:</span> <strong>{detail.value}</strong> */}
+                              <strong>{detail.value}</strong>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="upi-details">
-                  <p>
-                    <span>UPI ID:</span> <strong>{UPI_PAYMENT.upiId}</strong>
-                  </p>
-                  <p>
-                    <span>UPI Name:</span> <strong>{UPI_PAYMENT.upiName}</strong>
-                  </p>
-                </div>
-                <p className="upi-scan-hint">Scan to pay with any UPI app</p>
               </div>
 
               <div className="invoice-footer">
-                <p>Thank you for choosing SMT Sports — Your Ultimate Cricket Destination. <br />We look forward to serving you again!</p>
+                <strong><p style={{ marginBottom: 10 }}>Thank you for choosing SMT Sports — Your Ultimate Cricket Destination. <br />We look forward to serving you again!</p></strong>
                 <div className="footer-contact">
-                  <span>
-                    <PhoneIcon />
-                    97916 30322, 70921 50426
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" style={{ width: 18, height: 18, marginRight: 4, verticalAlign: 'middle' }}>
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 4.93 6.16 11.39 6.43 11.67a1 1 0 0 0 1.43 0C12.84 20.39 19 13.93 19 9c0-3.87-3.13-7-7-7zm0 16.22C9.12 15.07 7 11.97 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.97-2.12 6.07-5 9.22zM12 11.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5zm0-4A1.5 1.5 0 1 0 13.5 9 1.5 1.5 0 0 0 12 7.5z" />
+                    </svg>
+                    No.134/2, Gandhi Road, Srinivasan Nagar Post, 9, Alapakkam, Chennai - 600063.
                   </span>
-                  <span>
-                    <InstagramIcon />
-                    smt_sports_
-                  </span>
+             
                 </div>
               </div>
             </div>

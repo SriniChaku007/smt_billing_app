@@ -484,65 +484,74 @@ td {
   color: #166534;
 }
 
-.invoice-upi-section {
+.invoice-qr-section {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid #e2e8f0;
+}
+
+.qr-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.qr-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   text-align: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
-.upi-header {
+.qr-card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: #64748b;
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.upi-logo {
-  width: 36px;
-  height: 36px;
+.qr-card-logo {
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   border-radius: 50%;
 }
 
-.upi-qr-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 16px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+.qr-card-image-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
-.upi-qr-image {
+.qr-card-image {
   display: block;
-  width: min(220px, 70vw);
+  width: 100%;
+  max-width: 160px;
   height: auto;
 }
 
-.upi-details {
+.qr-card-details {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   color: #334155;
+  font-size: 0.88rem;
 }
 
-.upi-details p {
+.qr-card-details p {
   margin: 0;
 }
 
-.upi-details span {
+.qr-card-details span {
   font-weight: 600;
-}
-
-.upi-scan-hint {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.92rem;
 }
 
 .invoice-footer {
@@ -644,5 +653,9 @@ td {
   .footer-contact {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .qr-cards-grid {
+    grid-template-columns: 1fr;
   }
 }
