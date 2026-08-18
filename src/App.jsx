@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import html2canvas from 'html2canvas'
 import './App.css'
 import smtLogo from "./assets/smt_logo.png";
+import upiQr from "./assets/upi_qr.png";
+
+const UPI_PAYMENT = {
+  upiId: 'SMT Sports',
+  upiName: 'smtsports1504@oksbi',
+}
 
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
@@ -135,7 +141,7 @@ const recalculateDraftItem = (draft, changedField) => {
       smtPrice: Math.max(0, lineMrpValue - computedAmount),
     }
   }
-
+debugger
   if (changedField === 'discountAmount') {
     if (draft.discountAmount === '') {
       return {
@@ -201,6 +207,7 @@ function App() {
   const [formErrors, setFormErrors] = useState({})
   const [pdfBlob, setPdfBlob] = useState(null)
   const [pdfUrl, setPdfUrl] = useState('')
+  const previewRef = useRef(null)
 
   const totalMrp = items.reduce((sum, item) => sum + getLineMrp(item) * Number(item.quantity || 1), 0)
   const totalDiscountedAmount = items.reduce(
@@ -378,153 +385,39 @@ function App() {
       return
     }
 
+    if (!previewRef.current) {
+      return
+    }
+
     setErrors({})
+
+    const canvas = await html2canvas(previewRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    })
 
     const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 36
+    const margin = 24
+    const imgWidth = pageWidth - margin * 2
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+    const imgData = canvas.toDataURL('image/jpeg', 0.95)
 
-    doc.setFillColor(241, 245, 249)
-    doc.rect(0, 0, pageWidth, 84, 'F')
+    let heightLeft = imgHeight
+    let position = margin
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(26)
-    doc.setTextColor(15, 23, 42)
-    doc.text('SMT Sports', margin, 38)
+    doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
+    heightLeft -= pageHeight - margin * 2
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(55, 65, 81)
-    doc.text('No.134/2, Gandhi Road,', pageWidth - 150, 32)
-    doc.text('9, Alapakkam,', pageWidth - 150, 46)
-    doc.text('Chennai - 600063.', pageWidth - 150, 60)
-
-    if (smtLogo) {
-      doc.addImage(smtLogo, 'PNG', pageWidth - margin - 74, 10, 58, 58)
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + margin
+      doc.addPage()
+      doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight - margin * 2
     }
-
-    let currentY = 106
-    doc.setDrawColor(203, 213, 225)
-    doc.line(margin, currentY, pageWidth - margin, currentY)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.setTextColor(15, 23, 42)
-    doc.text('Customer Name:', margin, currentY + 22)
-    doc.setFont('helvetica', 'normal')
-    doc.text(customerName || '-', margin + 110, currentY + 22)
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Mobile Number:', margin + 260, currentY + 22)
-    doc.setFont('helvetica', 'normal')
-    doc.text(mobileNumber || '-', margin + 360, currentY + 22)
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Purchase Date:', margin, currentY + 42)
-    doc.setFont('helvetica', 'normal')
-    doc.text(purchaseDate || '-', margin + 110, currentY + 42)
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Payment Date:', margin + 260, currentY + 42)
-    doc.setFont('helvetica', 'normal')
-    doc.text(paymentDate || '-', margin + 355, currentY + 42)
-
-    currentY += 70
-
-    autoTable(doc, {
-      startY: currentY,
-      head: [['Item Details', 'MRP', 'Discount %', 'Discount Amount', 'After Discount', 'Qty', 'SMT Price']],
-      body: items.map((item) => [
-        item.itemName,
-        formatCurrency(getLineMrp(item)),
-        `${Number(item.discountPercent || 0).toFixed(2)}%`,
-        formatCurrency(getLineDiscountAmount(item)),
-        formatCurrency(getLineAfterDiscount(item)),
-        String(item.quantity || 1),
-        formatCurrency(getLineSmtPrice(item)),
-      ]),
-      theme: 'grid',
-      styles: {
-        fontSize: 9,
-        cellPadding: 6,
-        overflow: 'linebreak',
-        valign: 'middle',
-      },
-      headStyles: {
-        fillColor: [22, 101, 52],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-      },
-      columnStyles: {
-        0: { cellWidth: 120 },
-        1: { halign: 'center', cellWidth: 34 },
-        2: { halign: 'right', cellWidth: 54 },
-        3: { halign: 'right', cellWidth: 52 },
-        4: { halign: 'right', cellWidth: 72 },
-        5: { halign: 'right', cellWidth: 72 },
-        6: { halign: 'right', cellWidth: 72 },
-      },
-      margin: { left: margin, right: margin },
-    })
-
-    const summaryY = doc.lastAutoTable.finalY + 18
-    const paymentStartY = summaryY
-    const summaryX = pageWidth - margin - 180
-
-    doc.setTextColor(15, 23, 42)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Payment Status:', margin, paymentStartY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(paymentStatus, margin + 120, paymentStartY)
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Payment Mode:', margin, paymentStartY + 22)
-    doc.setFont('helvetica', 'normal')
-    doc.text(paymentMode, margin + 120, paymentStartY + 22)
-
-    if (paymentStatus === 'Partially Paid') {
-      doc.setFont('helvetica', 'bold')
-      doc.text('Partial Amount:', margin, paymentStartY + 44)
-      doc.setFont('helvetica', 'normal')
-      doc.text(formatCurrency(partialAmount || 0), margin + 120, paymentStartY + 44)
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Total MRP:', summaryX, summaryY)
-    doc.text(formatCurrency(totalMrp), pageWidth - margin, summaryY, { align: 'right' })
-
-    doc.text('Total Discounted Amount:', summaryX, summaryY + 20)
-    doc.text(formatCurrency(totalDiscountedAmount), pageWidth - margin, summaryY + 20, {
-      align: 'right',
-    })
-
-    doc.text('Round Off Amount:', summaryX, summaryY + 40)
-    doc.text(formatCurrency(roundOff), pageWidth - margin, summaryY + 40, {
-      align: 'right',
-    })
-
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(22, 101, 52)
-    doc.text('Total Bill Amount:', summaryX, summaryY + 70)
-    doc.text(formatCurrency(totalBillAmount), pageWidth - margin, summaryY + 70, {
-      align: 'right',
-    })
-
-    const footerY = pageHeight - 64
-    doc.setDrawColor(203, 213, 225)
-    doc.line(margin, footerY - 18, pageWidth - margin, footerY - 18)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.text('Thank you for choosing SMT Sports — Your Ultimate Cricket Destination. We look forward to serving you again!', margin, footerY)
-
-    doc.setFont('helvetica', 'normal')
-    doc.text('Phone:', margin, footerY + 20)
-    doc.text('97916 30322, 70921 50426', margin + 52, footerY + 20)
-
-    doc.text('Instagram:', margin + 260, footerY + 20)
-    doc.text('smt_sports_', margin + 330, footerY + 20)
 
     const pdfBlobResult = doc.output('blob')
     setPdfBlob(pdfBlobResult)
@@ -711,8 +604,9 @@ function App() {
                   <label htmlFor="discountAmount">Discount Amount</label>
                   <input
                     id="discountAmount"
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    min="0"
+                    max={Number(itemForm.mrp || 0) || undefined}
                     value={itemForm.discountAmount}
                     onChange={(event) =>
                       handleDraftFieldChange('discountAmount', normalizeDecimalInput(event.target.value))
@@ -929,7 +823,7 @@ function App() {
               <h2>Bill Preview</h2>
             </div>
 
-            <div className="preview-invoice" aria-label="Billing preview">
+            <div className="preview-invoice" ref={previewRef} aria-label="Billing preview">
               <div className="invoice-header">
                 <div className="shop-info">
                   <h3>SMT Sports</h3>
@@ -944,20 +838,16 @@ function App() {
 
               <div className="invoice-customer">
                 <div className="customer-line">
-                  <span>Customer Name:</span>
-                  <strong>{customerName || '-'}</strong>
+                  <span>Customer Name: <strong>{customerName || '-'}</strong></span>
                 </div>
                 <div className="customer-line">
-                  <span>Mobile Number:</span>
-                  <strong>{mobileNumber || '-'}</strong>
+                  <span>Customer Mobile Number: <strong>{mobileNumber || '-'}</strong></span>
                 </div>
                 <div className="customer-line">
-                  <span>Purchase Date:</span>
-                  <strong>{purchaseDate || '-'}</strong>
+                  <span>Purchase Date: <strong>{purchaseDate || '-'}</strong></span>
                 </div>
                 <div className="customer-line">
-                  <span>Payment Date:</span>
-                  <strong>{paymentDate || '-'}</strong>
+                  <span>Payment Date: <strong>{paymentDate || '-'}</strong></span>
                 </div>
               </div>
 
@@ -1034,6 +924,25 @@ function App() {
                     <strong>{formatCurrency(totalBillAmount)}</strong>
                   </div>
                 </div>
+              </div>
+
+              <div className="invoice-upi-section">
+                <div className="upi-header">
+                  <img src={smtLogo} alt="" className="upi-logo" />
+                  <span>{UPI_PAYMENT.upiId}</span>
+                </div>
+                <div className="upi-qr-card">
+                  <img src={upiQr} alt="UPI payment QR code" className="upi-qr-image" />
+                </div>
+                <div className="upi-details">
+                  <p>
+                    <span>UPI ID:</span> <strong>{UPI_PAYMENT.upiId}</strong>
+                  </p>
+                  <p>
+                    <span>UPI Name:</span> <strong>{UPI_PAYMENT.upiName}</strong>
+                  </p>
+                </div>
+                <p className="upi-scan-hint">Scan to pay with any UPI app</p>
               </div>
 
               <div className="invoice-footer">
