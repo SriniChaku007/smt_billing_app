@@ -28,6 +28,48 @@ const QR_CARDS = [
   },
 ]
 
+const PRODUCT_CATALOG = [
+  {
+    name: 'Cricket Bat',
+    mrp: 1800,
+    discountPercent: 10,
+    quantity: 1,
+    discountAmount: 180,
+    smtPrice: 1620,
+  },
+  {
+    name: 'Cricket Gloves',
+    mrp: 1200,
+    discountPercent: 8,
+    quantity: 1,
+    discountAmount: 96,
+    smtPrice: 1104,
+  },
+  {
+    name: 'Cricket Helmet',
+    mrp: 2500,
+    discountPercent: 12,
+    quantity: 1,
+    discountAmount: 300,
+    smtPrice: 2200,
+  },
+  {
+    name: 'Cricket Shoes',
+    mrp: 2200,
+    discountPercent: 15,
+    quantity: 1,
+    discountAmount: 330,
+    smtPrice: 1870,
+  },
+  {
+    name: 'Practice Ball',
+    mrp: 550,
+    discountPercent: 5,
+    quantity: 1,
+    discountAmount: 27.5,
+    smtPrice: 522.5,
+  },
+]
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -45,6 +87,7 @@ const getLocalDateString = (date = new Date()) => {
 
 const today = getLocalDateString()
 const initialItemForm = {
+  selectedOption: 'other',
   itemName: '',
   mrp: '',
   quantity: '1',
@@ -316,6 +359,40 @@ function App() {
     setFormErrors((current) => ({ ...current, [field]: '' }))
   }
 
+  const handleItemOptionChange = (selectedValue) => {
+    if (!selectedValue || selectedValue === 'other') {
+      setItemForm((current) => ({
+        ...initialItemForm,
+        ...current,
+        selectedOption: 'other',
+        itemName: '',
+      }))
+      setFormErrors({})
+      return
+    }
+
+    const selectedProduct = PRODUCT_CATALOG.find((product) => product.name === selectedValue)
+    if (!selectedProduct) {
+      return
+    }
+
+    const productDefaults = {
+      selectedOption: selectedProduct.name,
+      itemName: selectedProduct.name,
+      mrp: String(selectedProduct.mrp ?? ''),
+      quantity: String(selectedProduct.quantity || 1),
+      discountPercent: String(selectedProduct.discountPercent ?? 0),
+      discountAmount: String(selectedProduct.discountAmount ?? 0),
+      smtPrice: Number(selectedProduct.smtPrice ?? 0),
+    }
+
+    setItemForm((current) => ({
+      ...current,
+      ...productDefaults,
+    }))
+    setFormErrors({})
+  }
+
   const validateItemForm = (item) => {
     const nextErrors = {}
 
@@ -434,7 +511,11 @@ function App() {
 
   const handleEditItem = (item) => {
     setEditingItemId(item.id)
+
+    const matchingCatalogItem = PRODUCT_CATALOG.find((product) => product.name === item.itemName)
+
     setItemForm({
+      selectedOption: matchingCatalogItem ? matchingCatalogItem.name : 'other',
       itemName: item.itemName,
       mrp: String(item.mrp),
       quantity: String(item.quantity || 1),
@@ -669,16 +750,35 @@ function App() {
               <div className="field-grid item-grid">
                 <div className="field-group full-width">
                   <label htmlFor="itemName">Item Details</label>
-                  <input
+                  <select
                     id="itemName"
-                    type="text"
-                    value={itemForm.itemName}
-                    onChange={(event) => handleDraftFieldChange('itemName', event.target.value)}
-                    placeholder="Enter item details"
+                    value={itemForm.selectedOption}
+                    onChange={(event) => handleItemOptionChange(event.target.value)}
                     className={formErrors.itemName ? 'invalid' : ''}
-                  />
+                  >
+                    <option value="other">Other</option>
+                    {PRODUCT_CATALOG.map((product) => (
+                      <option key={product.name} value={product.name}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
                   {formErrors.itemName && <span className="error-text">{formErrors.itemName}</span>}
                 </div>
+
+                {itemForm.selectedOption === 'other' && (
+                  <div className="field-group full-width">
+                    <label htmlFor="manualItemName">Enter Item Details</label>
+                    <input
+                      id="manualItemName"
+                      type="text"
+                      value={itemForm.itemName}
+                      onChange={(event) => handleDraftFieldChange('itemName', event.target.value)}
+                      placeholder="Enter item details manually"
+                      className={formErrors.itemName ? 'invalid' : ''}
+                    />
+                  </div>
+                )}
 
                 <div className="field-group">
                   <label htmlFor="mrp">MRP</label>
@@ -801,9 +901,9 @@ function App() {
                     <tr>
                       <th>Item Details</th>
                       <th>MRP</th>
-                      <th>Discount %</th>
-                      <th>Discount Amount</th>
-                      <th>After Discount</th>
+                      <th>Dis %</th>
+                      <th>Dis Amount</th>
+                      <th>After Dis</th>
                       <th>Quantity</th>
                       <th>SMT Price</th>
                       <th>Action</th>
@@ -994,9 +1094,9 @@ function App() {
                     <tr>
                       <th>Item Details</th>
                       <th>MRP</th>
-                      <th>Discount %</th>
-                      <th>Discount Amount</th>
-                      <th>After Discount</th>
+                      <th>Dis %</th>
+                      <th>Dis Amount</th>
+                      <th>After Dis</th>
                       <th>Qty</th>
                       <th>SMT Price</th>
                     </tr>

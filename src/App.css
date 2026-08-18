@@ -109,7 +109,8 @@ label {
   color: #334155;
 }
 
-input {
+input,
+select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #cbd5e1;
@@ -121,13 +122,15 @@ input {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: #166534;
   box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
 }
 
-input.invalid {
+input.invalid,
+select.invalid {
   border-color: #dc2626;
 }
 
