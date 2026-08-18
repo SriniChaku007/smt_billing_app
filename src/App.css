@@ -554,6 +554,20 @@ td {
   font-weight: 600;
 }
 
+.invoice-pdf-header,
+.invoice-pdf-body,
+.invoice-pdf-footer {
+  width: 100%;
+}
+
+.invoice-pdf-body {
+  flex: 1;
+}
+
+.invoice-pdf-footer .invoice-footer {
+  margin-top: 0;
+}
+
 .invoice-footer {
   margin-top: 24px;
   border-top: 1px solid #e2e8f0;

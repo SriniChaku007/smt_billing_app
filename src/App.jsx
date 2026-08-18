@@ -55,6 +55,98 @@ const initialItemForm = {
 
 const formatCurrency = (value) => currencyFormatter.format(Number(value || 0))
 
+const html2canvasOptions = {
+  scale: 2,
+  useCORS: true,
+  backgroundColor: '#ffffff',
+  logging: false,
+}
+
+const getCanvasPdfHeight = (canvas, pdfWidth) => (canvas.height * pdfWidth) / canvas.width
+
+const captureElement = (element) => {
+  if (!element) {
+    return Promise.resolve(null)
+  }
+
+  return html2canvas(element, html2canvasOptions)
+}
+
+const addCanvasImage = (doc, canvas, x, y, width, height) => {
+  doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', x, y, width, height)
+}
+
+const addCanvasSlice = (doc, canvas, x, y, width, height, sourceY, sourceHeight) => {
+  const sliceCanvas = document.createElement('canvas')
+  const sliceHeight = Math.max(1, Math.ceil(sourceHeight))
+  sliceCanvas.width = canvas.width
+  sliceCanvas.height = sliceHeight
+  const context = sliceCanvas.getContext('2d')
+  context.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sliceHeight)
+  addCanvasImage(doc, sliceCanvas, x, y, width, height)
+}
+
+const buildPaginatedInvoicePdf = async (headerElement, bodyElement, footerElement) => {
+  const [headerCanvas, bodyCanvas, footerCanvas] = await Promise.all([
+    captureElement(headerElement),
+    captureElement(bodyElement),
+    captureElement(footerElement),
+  ])
+
+  if (!headerCanvas || !bodyCanvas || !footerCanvas) {
+    throw new Error('Missing invoice sections for PDF generation.')
+  }
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 24
+  const sectionGap = 12
+  const contentWidth = pageWidth - margin * 2
+
+  const headerHeight = getCanvasPdfHeight(headerCanvas, contentWidth)
+  const footerHeight = getCanvasPdfHeight(footerCanvas, contentWidth)
+  const bodyFullHeight = getCanvasPdfHeight(bodyCanvas, contentWidth)
+  const bodyAreaTop = margin + headerHeight + sectionGap
+  const footerTop = pageHeight - margin - footerHeight
+  const maxBodyHeightPerPage = Math.max(0, footerTop - sectionGap - bodyAreaTop)
+
+  let bodyOffsetPdf = 0
+  let pageIndex = 0
+
+  while (pageIndex === 0 || bodyOffsetPdf < bodyFullHeight - 0.5) {
+    if (pageIndex > 0) {
+      doc.addPage()
+    }
+
+    addCanvasImage(doc, headerCanvas, margin, margin, contentWidth, headerHeight)
+    addCanvasImage(doc, footerCanvas, margin, footerTop, contentWidth, footerHeight)
+
+    const remainingBodyHeight = bodyFullHeight - bodyOffsetPdf
+    const sliceHeightPdf = Math.min(maxBodyHeightPerPage, remainingBodyHeight)
+
+    if (sliceHeightPdf > 0.5) {
+      const sourceYOffset = (bodyOffsetPdf / bodyFullHeight) * bodyCanvas.height
+      const sourceSliceHeight = (sliceHeightPdf / bodyFullHeight) * bodyCanvas.height
+      addCanvasSlice(
+        doc,
+        bodyCanvas,
+        margin,
+        bodyAreaTop,
+        contentWidth,
+        sliceHeightPdf,
+        sourceYOffset,
+        sourceSliceHeight,
+      )
+      bodyOffsetPdf += sliceHeightPdf
+    }
+
+    pageIndex += 1
+  }
+
+  return doc
+}
+
 const getLineMrp = (item) => Number(item.mrp || 0)
 const getLineDiscountAmount = (item) => Number(item.discountAmount || 0)
 const getLineSmtPrice = (item) => Number(item.smtPrice || 0)
@@ -201,6 +293,9 @@ function App() {
   const [pdfBlob, setPdfBlob] = useState(null)
   const [pdfUrl, setPdfUrl] = useState('')
   const previewRef = useRef(null)
+  const previewHeaderRef = useRef(null)
+  const previewBodyRef = useRef(null)
+  const previewFooterRef = useRef(null)
 
   const totalMrp = items.reduce((sum, item) => sum + getLineMrp(item) * Number(item.quantity || 1), 0)
   const totalDiscountedAmount = items.reduce(
@@ -357,76 +452,13 @@ function App() {
     }
   }
 
-  const downloadPdf = () => {
-    if (!pdfBlob) {
-      return
-    }
-
-    const url = URL.createObjectURL(pdfBlob)
-    const downloadLink = document.createElement('a')
-    downloadLink.href = url
-    downloadLink.download = 'SMT_Sports_Bill__.pdf'
-    downloadLink.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  const getPdfFileName = () => {
+    const safeCustomerName = customerName.trim().replace(/[^\w-]+/g, '_') || 'Customer'
+    return `SMT_Sports_Bill_${safeCustomerName}.pdf`
   }
 
-  const handleGeneratePdf = async () => {
-    const validationErrors = { ...validateCustomerData(), ...validateBill() }
-    if (Object.keys(validationErrors).length) {
-      setErrors(validationErrors)
-      return
-    }
-
-    if (!previewRef.current) {
-      return
-    }
-
-    setErrors({})
-
-    const canvas = await html2canvas(previewRef.current, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-    })
-
-    const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 24
-    const imgWidth = pageWidth - margin * 2
-    const imgHeight = (canvas.height * imgWidth) / canvas.width
-    const imgData = canvas.toDataURL('image/jpeg', 0.95)
-
-    let heightLeft = imgHeight
-    let position = margin
-
-    doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight - margin * 2
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight + margin
-      doc.addPage()
-      doc.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight - margin * 2
-    }
-
-    const pdfBlobResult = doc.output('blob')
-    setPdfBlob(pdfBlobResult)
-    setPdfUrl((currentUrl) => {
-      if (currentUrl) {
-        URL.revokeObjectURL(currentUrl)
-      }
-      return URL.createObjectURL(pdfBlobResult)
-    })
-  }
-
-  const handleShareWhatsapp = async () => {
-    if (!pdfBlob) {
-      return
-    }
-
-    const shareText = [
+  const getBillShareText = () =>
+    [
       'SMT Sports Bill',
       `Customer: ${customerName}`,
       `Mobile: ${mobileNumber}`,
@@ -438,24 +470,113 @@ function App() {
       `Payment Mode: ${paymentMode}`,
     ].join('\n')
 
+  const downloadPdf = (blob = pdfBlob) => {
+    if (!blob) {
+      return
+    }
+
+    const url = URL.createObjectURL(blob)
+    const downloadLink = document.createElement('a')
+    downloadLink.href = url
+    downloadLink.download = getPdfFileName()
+    downloadLink.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const sharePdfBlob = async (blob) => {
+    if (!blob) {
+      return false
+    }
+
+    const shareText = getBillShareText()
+    const file = new File([blob], getPdfFileName(), { type: 'application/pdf' })
+
     if (navigator.share && window.isSecureContext) {
       try {
-        const file = new File([pdfBlob], 'SMT_Sports_Bill__.pdf', { type: 'application/pdf' })
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: 'SMT Sports Bill',
             text: shareText,
             files: [file],
           })
-          return
+          return true
         }
       } catch (error) {
+        if (error?.name === 'AbortError') {
+          return true
+        }
         console.error('Share failed', error)
       }
     }
 
-    downloadPdf()
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank')
+    return false
+  }
+
+  const handleGeneratePdf = async () => {
+    const validationErrors = { ...validateCustomerData(), ...validateBill() }
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors)
+      return
+    }
+
+    if (!previewHeaderRef.current || !previewBodyRef.current || !previewFooterRef.current) {
+      return
+    }
+
+    setErrors({})
+
+    const pdfPreviewWindow = window.open('', '_blank')
+    if (pdfPreviewWindow) {
+      pdfPreviewWindow.document.title = getPdfFileName()
+      pdfPreviewWindow.document.body.innerHTML =
+        '<p style="font-family: sans-serif; padding: 24px;">Generating bill PDF...</p>'
+    }
+
+    try {
+      const doc = await buildPaginatedInvoicePdf(
+        previewHeaderRef.current,
+        previewBodyRef.current,
+        previewFooterRef.current,
+      )
+
+      const pdfBlobResult = doc.output('blob')
+      const pdfObjectUrl = URL.createObjectURL(pdfBlobResult)
+
+      setPdfBlob(pdfBlobResult)
+      setPdfUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return pdfObjectUrl
+      })
+
+      if (pdfPreviewWindow) {
+        pdfPreviewWindow.location.href = pdfObjectUrl
+      } else {
+        window.open(pdfObjectUrl, '_blank')
+      }
+
+      await sharePdfBlob(pdfBlobResult)
+    } catch (error) {
+      pdfPreviewWindow?.close()
+      console.error('PDF generation failed', error)
+      setErrors((current) => ({
+        ...current,
+        pdf: 'Could not generate the bill PDF. Please try again.',
+      }))
+    }
+  }
+
+  const handleSharePdf = async () => {
+    if (!pdfBlob) {
+      return
+    }
+
+    const shared = await sharePdfBlob(pdfBlob)
+    if (!shared) {
+      downloadPdf()
+      window.open(`https://wa.me/?text=${encodeURIComponent(getBillShareText())}`, '_blank')
+    }
   }
 
   return (
@@ -829,27 +950,29 @@ function App() {
             </div>
 
             <div className="preview-invoice" ref={previewRef} aria-label="Billing preview">
-              <div className="invoice-title" style={{ textAlign: "center", marginBottom: "1em" }}>
-                <h1 style={{ margin: 0, fontSize: "2em" }}>Sales Order</h1>
-              </div>
-         
-              <div className="invoice-header">
-                <div className="shop-info">
-                  <h3>SMT Sports</h3>
-                  <p style={{ display: "flex", alignItems: "center", gap: "0.5em", margin: 0 }}>
-                    <span role="img" aria-label="Phone" style={{ fontSize: "1.1em" }}>📞</span>
-                    <span>97916 30322, 70921 50426</span>
-                  </p>
-                  <p style={{ margin: 0, fontSize: "0.95em", color: "#555" }}>
-                    <strong>MSME No:</strong> UDYAM-TN-34-0114424
-                  </p>
+              <div ref={previewHeaderRef} className="invoice-pdf-header">
+                <div className="invoice-title" style={{ textAlign: "center", marginBottom: "1em" }}>
+                  <h1 style={{ margin: 0, fontSize: "2em" }}>Sales Order</h1>
                 </div>
-                <div className="logo-wrap" style={{ width: "120px", height: "120px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <img src={smtLogo} alt="SMT Sports logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+
+                <div className="invoice-header">
+                  <div className="shop-info">
+                    <h3>SMT Sports</h3>
+                    <p style={{ display: "flex", alignItems: "center", gap: "0.5em", margin: 0 }}>
+                      <span role="img" aria-label="Phone" style={{ fontSize: "1.1em" }}>📞</span>
+                      <span>97916 30322, 70921 50426</span>
+                    </p>
+                    <p style={{ margin: 0, fontSize: "0.95em", color: "#555" }}>
+                      <strong>MSME No:</strong> UDYAM-TN-34-0114424
+                    </p>
+                  </div>
+                  <div className="logo-wrap" style={{ width: "120px", height: "120px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <img src={smtLogo} alt="SMT Sports logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  </div>
                 </div>
-           
               </div>
 
+              <div ref={previewBodyRef} className="invoice-pdf-body">
               <div className="invoice-customer">
                 <div className="customer-line">
                   <span>Customer Name: <strong>{customerName || '-'}</strong></span>
@@ -999,17 +1122,16 @@ function App() {
                   ))}
                 </div>
               </div>
+              </div>
 
-              <div className="invoice-footer">
-                <strong><p style={{ marginBottom: 10 }}>Thank you for choosing SMT Sports — Your Ultimate Cricket Destination. <br />We look forward to serving you again!</p></strong>
-                <div className="footer-contact">
-                  <span style={{ display: "flex", alignItems: "center" }}>
-                    <svg viewBox="0 0 24 24" aria-hidden="true" style={{ width: 18, height: 18, marginRight: 4, verticalAlign: 'middle' }}>
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 4.93 6.16 11.39 6.43 11.67a1 1 0 0 0 1.43 0C12.84 20.39 19 13.93 19 9c0-3.87-3.13-7-7-7zm0 16.22C9.12 15.07 7 11.97 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.97-2.12 6.07-5 9.22zM12 11.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5zm0-4A1.5 1.5 0 1 0 13.5 9 1.5 1.5 0 0 0 12 7.5z" />
-                    </svg>
-                    No.134/2, Gandhi Road, Srinivasan Nagar Post, 9, Alapakkam, Chennai - 600063.
-                  </span>
-             
+              <div ref={previewFooterRef} className="invoice-pdf-footer">
+                <div className="invoice-footer">
+                  <strong><p style={{ marginBottom: 10 }}>Thank you for choosing SMT Sports — Your Ultimate Cricket Destination. <br />We look forward to serving you again!</p></strong>
+                  <div className="footer-contact">
+                    <span style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+                      Address: No.134/2, Gandhi Road, Srinivasan Nagar Post, 9, Alapakkam, Chennai - 600063.
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1018,12 +1140,18 @@ function App() {
           <section className="card action-card">
             <div className="action-buttons">
               <button type="button" className="primary-btn" onClick={handleGeneratePdf}>
-                Generate PDF
+                Generate & Open PDF
               </button>
-              <button type="button" className="secondary-btn" onClick={handleShareWhatsapp} disabled={!pdfBlob}>
-                Share via WhatsApp
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={handleSharePdf}
+                disabled={!pdfBlob}
+              >
+                Share PDF
               </button>
             </div>
+            {errors.pdf && <span className="error-text">{errors.pdf}</span>}
             {pdfUrl && (
               <div className="pdf-link-row">
                 <a href={pdfUrl} target="_blank" rel="noreferrer">
