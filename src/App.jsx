@@ -1073,60 +1073,60 @@ function App() {
               </div>
 
               <div ref={previewBodyRef} className="invoice-pdf-body">
-              <div className="invoice-customer">
-                <div className="customer-line">
-                  <span>Customer Name: <strong>{customerName || '-'}</strong></span>
+                <div className="invoice-customer">
+                  <div className="customer-line">
+                    <span>Customer Name: <strong>{customerName || '-'}</strong></span>
+                  </div>
+                  <div className="customer-line">
+                    <span>Customer Mobile Number: <strong>{mobileNumber || '-'}</strong></span>
+                  </div>
+                  <div className="customer-line">
+                    <span>Purchase Date: <strong>{purchaseDate || '-'}</strong></span>
+                  </div>
+                  <div className="customer-line">
+                    <span>Payment Date: <strong>{paymentDate || '-'}</strong></span>
+                  </div>
                 </div>
-                <div className="customer-line">
-                  <span>Customer Mobile Number: <strong>{mobileNumber || '-'}</strong></span>
-                </div>
-                <div className="customer-line">
-                  <span>Purchase Date: <strong>{purchaseDate || '-'}</strong></span>
-                </div>
-                <div className="customer-line">
-                  <span>Payment Date: <strong>{paymentDate || '-'}</strong></span>
-                </div>
-              </div>
 
-              <div className="invoice-table-wrapper">
-                <table className="invoice-table">
-                  <thead>
-                    <tr>
-                      <th>Item Details</th>
-                      <th>MRP</th>
-                      <th>Dis %</th>
-                      <th>Dis Amount</th>
-                      <th>After Dis</th>
-                      <th>Qty</th>
-                      <th>SMT Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.length > 0 ? (
-                      items.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.itemName}</td>
-                          <td>{formatCurrency(getLineMrp(item))}</td>
-                          <td>{Number(item.discountPercent || 0).toFixed(2)}%</td>
-                          <td>{formatCurrency(getLineDiscountAmount(item))}</td>
-                          <td>{formatCurrency(getLineAfterDiscount(item))}</td>
-                          <td>{item.quantity || 1}</td>
-                          <td>{formatCurrency(getLineSmtPrice(item))}</td>
-                        </tr>
-                      ))
-                    ) : (
+                <div className="invoice-table-wrapper">
+                  <table className="invoice-table">
+                    <thead>
                       <tr>
-                        <td colSpan="6" className="preview-empty">
-                          No items added yet.
-                        </td>
+                        <th>Item Details</th>
+                        <th>MRP</th>
+                        <th>Dis %</th>
+                        <th>Dis Amount</th>
+                        <th>After Dis</th>
+                        <th>Qty</th>
+                        <th>SMT Price</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {items.length > 0 ? (
+                        items.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.itemName}</td>
+                            <td>{formatCurrency(getLineMrp(item))}</td>
+                            <td>{Number(item.discountPercent || 0).toFixed(2)}%</td>
+                            <td>{formatCurrency(getLineDiscountAmount(item))}</td>
+                            <td>{formatCurrency(getLineAfterDiscount(item))}</td>
+                            <td>{item.quantity || 1}</td>
+                            <td>{formatCurrency(getLineSmtPrice(item))}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="6" className="preview-empty">
+                            No items added yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="invoice-bottom-grid">
-                <div className="invoice-payment-info">
+                <div className="invoice-bottom-grid">
+                  {/* <div className="invoice-payment-info">
                   <div className="payment-line">
                     <span>Payment Status:</span>
                     <strong>{paymentStatus}</strong>
@@ -1153,41 +1153,60 @@ function App() {
                     <span>Payment Mode:</span>
                     <strong>{paymentMode}</strong>
                   </div>
+                </div> */}
+                  <div className="upi-details-section" style={{ marginBottom: '10px', padding: '16px', border: '1px dashed #bcbcbc', borderRadius: 10, maxWidth: 900 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '1.12rem', marginBottom: 6 }}>UPI Payment Details</div>
+                        <div style={{ marginBottom: 4 }}>
+                          <span style={{ fontWeight: 500 }}>Name:</span>{' '}
+                          <span>SMT SPORTS</span>
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                          <span style={{ fontWeight: 500 }}>Mobile Number:</span>{' '}
+                          <span>7092150426</span>
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          <span style={{ fontWeight: 500 }}>ID:</span>{' '}
+                          <span style={{ fontFamily: 'monospace', background: '#f4f4f4', padding: '1px 6px', borderRadius: 4 }}>smtsports1504@oksbi</span>
+                        </div>
+                      </div>
+                      <div style={{ marginLeft: 24 }}>
+                        <img
+                          src={upiQr}
+                          alt="SMT Sports UPI QR"
+                          style={{ width: 120, height: 120, border: '1px solid #d1d1d1', borderRadius: 6 }}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="invoice-summary">
+                    <div className="summary-line">
+                      <span>Total MRP:</span>
+                      <strong>{formatCurrency(totalMrp)}</strong>
+                    </div>
+                    <div className="summary-line">
+                      <span>Total Discounted Amount:</span>
+                      <strong>{formatCurrency(totalDiscountedAmount)}</strong>
+                    </div>
+                    <div className="summary-line">
+                      <span>Round Off Amount:</span>
+                      <strong>{formatCurrency(roundOff)}</strong>
+                    </div>
+                    <div className="summary-line grand-total">
+                      <span>Total Bill Amount:</span>
+                      <strong>{formatCurrency(totalBillAmount)}</strong>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="invoice-summary">
-                  <div className="summary-line">
-                    <span>Total MRP:</span>
-                    <strong>{formatCurrency(totalMrp)}</strong>
-                  </div>
-                  <div className="summary-line">
-                    <span>Total Discounted Amount:</span>
-                    <strong>{formatCurrency(totalDiscountedAmount)}</strong>
-                  </div>
-                  <div className="summary-line">
-                    <span>Round Off Amount:</span>
-                    <strong>{formatCurrency(roundOff)}</strong>
-                  </div>
-                  <div className="summary-line grand-total">
-                    <span>Total Bill Amount:</span>
-                    <strong>{formatCurrency(totalBillAmount)}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="invoice-qr-section">
+                {/* <div className="invoice-qr-section">
                 <div className="qr-card-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                  {/* <img src={smtLogo} alt="" className="qr-card-logo" /> */}
                   <span style={{
                     fontWeight: 700,
                     fontSize: "1.2rem",
-                    // color: "rgb(0, 100, 200)", // SMT blue
-                    // For logo gradient: also mix with orange (#e64d2e), e.g. using a multi-color effect
-                    // Example: use a gradient text if supported, fallback to blue/orange for cross-compatibility
-                    // You may toggle between blue and orange (#e64d2e) for brand consistency
-                    // WebkitBackgroundClip: "text",
-                    // WebkitTextFillColor: "transparent",
-                    // backgroundClip: "text",
                     marginTop: 6,
                     letterSpacing: "0.5px",
                     textAlign: "center"
@@ -1201,10 +1220,6 @@ function App() {
 
                   {QR_CARDS.map((card) => (
                     <div key={card.id} className="qr-card">
-                      {/* <div className="qr-card-header">
-                        <img src={smtLogo} alt="" className="qr-card-logo" />
-                        <span>SMT Sports</span>
-                      </div> */}
                       <div className="qr-card-image-wrap">
                         <img src={card.image} alt={card.alt} className="qr-card-image" />
                       </div>
@@ -1212,7 +1227,6 @@ function App() {
                         <div className="qr-card-details">
                           {card.details.map((detail) => (
                             <p key={detail.label}>
-                              {/* <span>{detail.label}:</span> <strong>{detail.value}</strong> */}
                               <strong>{detail.value}</strong>
                             </p>
                           ))}
@@ -1221,7 +1235,9 @@ function App() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
+
+
               </div>
 
               <div ref={previewFooterRef} className="invoice-pdf-footer">
